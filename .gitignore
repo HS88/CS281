@@ -2,3 +2,6 @@
 images/
 keras_frcnn/vcoco/
 *.pickle
+*.png
+logs/
+*.hdf5

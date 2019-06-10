@@ -1,4 +1,5 @@
 from __future__ import division
+from keras.utils.vis_utils import plot_model
 import random
 import pprint
 import sys
@@ -179,7 +180,8 @@ classifier_branch2 = nn.classifier_branch2(shared_layers, roi_input, C.num_rois,
 model_rpn = Model(img_input, rpn[:2])
 model_classifier = Model([img_input, roi_input], classifier)
 model_classifier_branch2 = Model([img_input, roi_input], classifier_branch2)
-
+#plot_model(model_classifier_branch2,"branch2.png",show_shapes=True,show_layer_names=True)
+#plot_model(model_classifier,"original.png",show_shapes=True,show_layer_names=True)
 # this is a model that holds both the RPN and the classifier, used to load/save weights for the models
 model_all = Model([img_input, roi_input], rpn[:2] + classifier + classifier_branch2)
 
@@ -199,6 +201,8 @@ optimizer_classifier = Adam(lr=1e-5)
 model_rpn.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors)])
 model_classifier.compile(optimizer=optimizer_classifier, loss=[losses.class_loss_cls, losses.class_loss_regr(len(classes_count)-1)], metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
 model_classifier_branch2.compile(optimizer=optimizer_classifier, loss=[losses.class_loss_cls, losses.class_loss_regr(len(actions_count)-1)], metrics={'dense_class_{}'.format(len(actions_count)): 'accuracy'})
+
+
 
 model_all.compile(optimizer='sgd', loss='mae')
 
@@ -252,9 +256,9 @@ for epoch_num in range(num_epochs):
         R = roi_helpers.rpn_to_roi(P_rpn[0], P_rpn[1], C, K.image_dim_ordering(), use_regr=True, overlap_thresh=0.7, max_boxes=300)
         # note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
         X2, Y1, Y2, IouS = roi_helpers.calc_iou(R, img_data, C, class_mapping)
-        X2_h, Y1_h, Y2_boh, IouS_h = roi_helpers.calc_iou_a(R, img_data, C, action_mapping, True)
+        X2_h, Y1_h, Y2_boh, IouS_h = roi_helpers.calc_iou_human(R, img_data, C, action_mapping, True)
 
-        if X2 is None:
+        if X2 is None or X2_h is None:
             rpn_accuracy_rpn_monitor.append(0)
             rpn_accuracy_for_epoch.append(0)
             continue
@@ -262,6 +266,9 @@ for epoch_num in range(num_epochs):
         # sampling positive/negative samples
         neg_samples = np.where(Y1[0, :, -1] == 1)
         pos_samples = np.where(Y1[0, :, -1] == 0)
+
+        neg_samples_h = np.where(Y1_h[0, :, -1] == 1)
+        pos_samples_h = np.where(Y1_h[0, :, -1] == 0)
 
         if len(neg_samples) > 0:
             neg_samples = neg_samples[0]
@@ -273,8 +280,21 @@ for epoch_num in range(num_epochs):
         else:
             pos_samples = []
 
+        if len(neg_samples_h) > 0:
+            neg_samples_h = neg_samples_h[0]
+        else:
+            neg_samples_h = []
+
+        if len(pos_samples_h) > 0:
+            pos_samples_h = pos_samples_h[0]
+        else:
+            pos_samples_h = []
+
         rpn_accuracy_rpn_monitor.append(len(pos_samples))
         rpn_accuracy_for_epoch.append((len(pos_samples)))
+
+        rpn_accuracy_rpn_monitor.append(len(pos_samples_h))
+        rpn_accuracy_for_epoch.append((len(pos_samples_h)))
 
         if C.num_rois > 1:
             if len(pos_samples) < C.num_rois//2:
@@ -296,11 +316,33 @@ for epoch_num in range(num_epochs):
             else:
                 sel_samples = random.choice(pos_samples)
 
+        if C.num_rois > 1:
+            if len(pos_samples_h) < C.num_rois:
+                selected_pos_samples_h = pos_samples_h.tolist()
+            else:
+                selected_pos_samples_h = np.random.choice(pos_samples_h, C.num_rois, replace=False).tolist()
+           # try:
+           #     selected_neg_samples_h = np.random.choice(neg_samples_h, C.num_rois - len(selected_pos_samples_h), replace=False).tolist()
+           # except:
+               # selected_neg_samples_h = np.random.choice(neg_samples_h, C.num_rois - len(selected_pos_samples_h), replace=True).tolist()
 
-        print(X.shape,X2.shape,Y1.shape,Y2.shape)
+            sel_samples_h = selected_pos_samples_h #+ selected_neg_samples_h
+        else:
+            # in the extreme case where num_rois = 1, we pick a random pos or neg sample
+            selected_pos_samples_h = pos_samples_h.tolist()
+            selected_neg_samples_h = neg_samples_h.tolist()
+            if np.random.randint(0, 2):
+                sel_samples_h = random.choice(neg_samples_h)
+            else:
+                sel_samples_h = random.choice(pos_samples_h)
+
+
+        print(sel_samples)
+        print(sel_samples_h)
+
         print(X.shape, X2_h.shape, Y1_h.shape, Y2_boh.shape)
         loss_class = model_classifier.train_on_batch([X, X2[:, sel_samples, :]], [Y1[:, sel_samples, :], Y2[:, sel_samples, :]])
-        loss_class_branch2 = model_classifier_branch2.train_on_batch([X, X2_h[:, :, :]],[Y1_h[:, :, :], Y2_boh])
+        loss_class_branch2 = model_classifier_branch2.train_on_batch([X, X2_h[:, sel_samples_h, :]],[Y1_h[:, sel_samples_h, :], Y2_boh[:, sel_samples_h, :]])
 
         write_log(callback, ['detection_cls_loss', 'detection_reg_loss', 'detection_acc'], loss_class, train_step)
         train_step += 1
@@ -312,17 +354,22 @@ for epoch_num in range(num_epochs):
         losses[iter_num, 3] = loss_class[2]
         losses[iter_num, 4] = loss_class[3]
 
-        losses[iter_num, 5] = loss_class_branch2[1]
-        losses[iter_num, 6] = loss_class_branch2[2]
-        losses[iter_num, 7] = loss_class_branch2[3]
+        losses[iter_num, 5] = loss_class[1]
+        losses[iter_num, 6] = loss_class[2]
+        losses[iter_num, 7] = loss_class[3]
 
         iter_num += 1
 
-        progbar.update(iter_num, [
-                                  ('rpn_cls', np.mean(losses[:iter_num, 0])), ('rpn_regr', np.mean(losses[:iter_num, 1])),
-                                  ('detector_cls', np.mean(losses[:iter_num, 2])), ('detector_regr', np.mean(losses[:iter_num, 3]))
-                                  ('detector_cls_branch2', np.mean(losses[:iter_num, 5])), ('detector_regr_branch2', np.mean(losses[:iter_num, 6]))
-                                  ])
+
+        progbar.update(iter_num,
+                       [
+                            ('rpn_cls', np.mean(losses[:iter_num, 0])), ('rpn_regr', np.mean(losses[:iter_num, 1])),
+                            ('detector_cls', np.mean(losses[:iter_num, 2])),
+                            ('detector_regr', np.mean(losses[:iter_num, 3])),
+                           ('detector_cls2', np.mean(losses[:iter_num, 5])),
+                           ('detector_regr2', np.mean(losses[:iter_num, 6]))
+                        ])
+
 
         if iter_num == epoch_length:
             loss_rpn_cls = np.mean(losses[:, 0])

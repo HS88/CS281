@@ -72,7 +72,7 @@ def calc_iou_human(R, img_data, C, action_mapping, human_only=False):
                 best_iou = curr_iou
                 best_bbox = bbox_num
 
-        if best_iou < C.classifier_max_overlap:
+        if best_iou < C.classifier_max_overlap_h:
                 #print( best_iou )
                 continue
         else:
@@ -83,10 +83,10 @@ def calc_iou_human(R, img_data, C, action_mapping, human_only=False):
 
             modified_boh_coordinates = generate_boh([x1, y1, w, h], triples[2])
 
-            if C.classifier_min_overlap <= best_iou < C.classifier_max_overlap:
+            if C.classifier_min_overlap <= best_iou < C.classifier_max_overlap_h:
                 # hard negative example
                 action_number = -1
-            elif C.classifier_max_overlap <= best_iou:
+            elif C.classifier_max_overlap_h <= best_iou:
                 action_number = int(triples[1]['action']) #harmeet. TODO- change this to get action number
             #    cxg = (gta[best_bbox, 0] + gta[best_bbox, 1]) / 2.0
                 #cyg = (gta[best_bbox, 2] + gta[best_bbox, 3]) / 2.0
@@ -262,7 +262,7 @@ def calc_iou_a(R, img_data, C, class_mapping, human_only=False):
                 best_iou = curr_iou
                 best_bbox = bbox_num
 
-        if best_iou < C.classifier_min_overlap:
+        if best_iou < C.classifier_max_overlap:
                 continue
         else:
             w = x2 - x1
