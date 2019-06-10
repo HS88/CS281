@@ -48,7 +48,7 @@ def identity_block(input_tensor, kernel_size, filters, stage, block, trainable=T
 
     conv_name_base = 'res' + str(stage) + block + '_branch'
     bn_name_base = 'bn' + str(stage) + block + '_branch'
-    '''
+
     x = Convolution2D(nb_filter1, (1, 1), name=conv_name_base + '2a', trainable=trainable)(input_tensor)
     x = FixedBatchNormalization(axis=bn_axis, name=bn_name_base + '2a')(x)
     x = Activation('relu')(x)
@@ -60,8 +60,8 @@ def identity_block(input_tensor, kernel_size, filters, stage, block, trainable=T
 
     x = Convolution2D(nb_filter3, (1, 1), name=conv_name_base + '2c', trainable=trainable)(x)
     x = FixedBatchNormalization(axis=bn_axis, name=bn_name_base + '2c')(x)
-    '''
-    x = Add()([input_tensor, input_tensor])
+
+    x = Add()([x, input_tensor])
     x = Activation('relu')(x)
     return x
 

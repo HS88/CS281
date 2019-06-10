@@ -34,7 +34,7 @@ parser = OptionParser()
 
 parser.add_option("-p", "--path", dest="train_path", help="Path to training data.")
 parser.add_option("-o", "--parser", dest="parser", help="Parser to use. One of simple or pascal_voc",
-                  default="pascal_voc")
+                  default="simple")
 parser.add_option("-n", "--num_rois", dest="num_rois", help="Number of RoIs to process at once.", default=32)
 parser.add_option("--network", dest="network", help="Base network to use. Supports vgg or resnet50.", default='resnet50')
 parser.add_option("--hf", dest="horizontal_flips", help="Augment with horizontal flips in training. (Default=false).", action="store_true", default=False)
@@ -56,7 +56,7 @@ if not options.train_path:   # if filename is not given
 if options.parser == 'pascal_voc':
     from keras_frcnn.pascal_voc_parser import get_data
 elif options.parser == 'simple':
-    from keras_frcnn.simple_parser import get_data
+    from keras_frcnn.vcoco.simple_parser import get_data
 else:
     raise ValueError("Command line option parser must be one of 'pascal_voc' or 'simple'")
 
@@ -92,18 +92,25 @@ if options.input_weight_path:
 else:
     # set the path to weights based on backend and model
     C.base_net_weights = nn.get_weight_path()
+'''
 
-
-all_imgs, classes_count, class_mapping, actions_count, action_mapping = get_data_vcoco(options.train_path)
+all_imgs, classes_count, class_mapping, actions_count, action_mapping = get_data(options.train_path)
 
 
 pickle_out = open("classes_count_inet.pickle","wb") ;pickle.dump(classes_count, pickle_out) ;pickle_out.close();
 pickle_out = open("class_mapping_inet.pickle","wb") ;pickle.dump(class_mapping, pickle_out) ;pickle_out.close();
+pickle_out = open("actions_count_inet.pickle","wb") ;pickle.dump(actions_count, pickle_out) ;pickle_out.close();
+pickle_out = open("action_mapping_inet.pickle","wb") ;pickle.dump(action_mapping, pickle_out) ;pickle_out.close();
+pickle_out = open("all_imgs_inet.pickle","wb") ;pickle.dump(all_imgs, pickle_out) ;pickle_out.close();
 
 '''
 pickle_in = open("classes_count_inet.pickle","rb") ;classes_count=pickle.load(pickle_in)
 pickle_in = open("class_mapping_inet.pickle","rb") ;class_mapping=pickle.load(pickle_in)
-'''
+pickle_in = open("actions_count_inet.pickle","rb") ;actions_count=pickle.load(pickle_in)
+pickle_in = open("action_mapping_inet.pickle","rb") ;action_mapping=pickle.load(pickle_in)
+pickle_in = open("all_imgs_inet.pickle","rb") ;all_imgs=pickle.load(pickle_in)
+
+
 
 if 'bg' not in classes_count:
     classes_count['bg'] = 0
@@ -245,7 +252,7 @@ for epoch_num in range(num_epochs):
         R = roi_helpers.rpn_to_roi(P_rpn[0], P_rpn[1], C, K.image_dim_ordering(), use_regr=True, overlap_thresh=0.7, max_boxes=300)
         # note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
         X2, Y1, Y2, IouS = roi_helpers.calc_iou(R, img_data, C, class_mapping)
-        X2_h, Y1_h, Y2_boh, IouS_h = roi_helpers.calc_iou_human(R, img_data, C, action_mapping, True)
+        X2_h, Y1_h, Y2_boh, IouS_h = roi_helpers.calc_iou_a(R, img_data, C, action_mapping, True)
 
         if X2 is None:
             rpn_accuracy_rpn_monitor.append(0)
@@ -289,8 +296,11 @@ for epoch_num in range(num_epochs):
             else:
                 sel_samples = random.choice(pos_samples)
 
+
+        print(X.shape,X2.shape,Y1.shape,Y2.shape)
+        print(X.shape, X2_h.shape, Y1_h.shape, Y2_boh.shape)
         loss_class = model_classifier.train_on_batch([X, X2[:, sel_samples, :]], [Y1[:, sel_samples, :], Y2[:, sel_samples, :]])
-        loss_class_branch2 = model_classifier_branch2.train_on_batch([X, X2_h],[Y1_h, Y2_boh])
+        loss_class_branch2 = model_classifier_branch2.train_on_batch([X, X2_h[:, :, :]],[Y1_h[:, :, :], Y2_boh])
 
         write_log(callback, ['detection_cls_loss', 'detection_reg_loss', 'detection_acc'], loss_class, train_step)
         train_step += 1

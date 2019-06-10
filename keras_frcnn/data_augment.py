@@ -1,7 +1,8 @@
 import cv2
 import numpy as np
 import copy
-
+from PIL import Image
+import urllib, cStringIO
 
 def augment(img_data, config, augment=True):
     assert 'filepath' in img_data
@@ -11,7 +12,7 @@ def augment(img_data, config, augment=True):
 
     img_data_aug = copy.deepcopy(img_data)
 
-    img = cv2.imread(img_data_aug['filepath'])
+    img = np.asarray(Image.open(img_data_aug['filepath']))
 
     if augment:
         rows, cols = img.shape[:2]

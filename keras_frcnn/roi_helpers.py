@@ -8,8 +8,8 @@ import time
 def generate_boh(human_bboxes, gt_o_bboxes):
     #human and object boxes must be same length, returns b
     #assuming human encoded as x1,y1,w,h, ground truth encoded as x1,y1,x2,y2
-    cxg = gt_o_bboxes[0]
-    cyg = gt_o_bboxes[1]
+    cxg = gt_o_bboxes['x1']
+    cyg = gt_o_bboxes['y1']
     cx = human_bboxes[0]
     cy = human_bboxes[1]
     w = human_bboxes[2]
@@ -17,14 +17,14 @@ def generate_boh(human_bboxes, gt_o_bboxes):
     temp = (cxg - cx)
     tx = (cxg - cx) / w
     ty = (cyg - cy) / h
-    tw = math.log((gt_o_bboxes[2] - gt_o_bboxes[0]) / float(w))
-    th = math.log((gt_o_bboxes[3] - gt_o_bboxes[1]) / float(h))
+    tw = math.log((gt_o_bboxes['x2'] - gt_o_bboxes['x1']) / float(w))
+    th = math.log((gt_o_bboxes['y2'] - gt_o_bboxes['y1']) / float(h))
 
     return [tx,ty,tw,th]
 
 def calc_iou_human(R, img_data, C, action_mapping, human_only=False):
     bboxes = img_data['bboxes']
-    triples = img_data['bboxes'] #TODO - img_data['triples'][0] # we have only one triples in an image. I am retreiving it here.
+    triples = img_data['triples'][0]# we have only one triples in an image. I am retreiving it here.
     if( human_only == True ):
         human_bboxes = []
         count = 0
@@ -73,7 +73,7 @@ def calc_iou_human(R, img_data, C, action_mapping, human_only=False):
                 best_bbox = bbox_num
 
         if best_iou < C.classifier_max_overlap:
-                print( best_iou )
+                #print( best_iou )
                 continue
         else:
             w = x2 - x1
@@ -81,21 +81,23 @@ def calc_iou_human(R, img_data, C, action_mapping, human_only=False):
             x_roi.append([x1, y1, w, h])
             IoUs.append(best_iou)
 
+            modified_boh_coordinates = generate_boh([x1, y1, w, h], triples[2])
+
             if C.classifier_min_overlap <= best_iou < C.classifier_max_overlap:
                 # hard negative example
                 action_number = -1
             elif C.classifier_max_overlap <= best_iou:
-                action_number = 1#int(triples[1]['action']) #harmeet. TODO- change this to get action number
-                cxg = (gta[best_bbox, 0] + gta[best_bbox, 1]) / 2.0
-                cyg = (gta[best_bbox, 2] + gta[best_bbox, 3]) / 2.0
+                action_number = int(triples[1]['action']) #harmeet. TODO- change this to get action number
+            #    cxg = (gta[best_bbox, 0] + gta[best_bbox, 1]) / 2.0
+                #cyg = (gta[best_bbox, 2] + gta[best_bbox, 3]) / 2.0
 
-                cx = x1 + w / 2.0
-                cy = y1 + h / 2.0
+             #   cx = x1 + w / 2.0
+            #    cy = y1 + h / 2.0
 
-                tx = (cxg - cx) / float(w)
-                ty = (cyg - cy) / float(h)
-                tw = np.log((gta[best_bbox, 1] - gta[best_bbox, 0]) / float(w))
-                th = np.log((gta[best_bbox, 3] - gta[best_bbox, 2]) / float(h))
+           #     tx = (cxg - cx) / float(w)
+           #     ty = (cyg - cy) / float(h)
+           #     tw = np.log((gta[best_bbox, 1] - gta[best_bbox, 0]) / float(w))
+           #     th = np.log((gta[best_bbox, 3] - gta[best_bbox, 2]) / float(h))
 #            else:
 #                print('roi = {}'.format(best_iou))
 #                raise RuntimeError
@@ -108,10 +110,10 @@ def calc_iou_human(R, img_data, C, action_mapping, human_only=False):
         labels = [0] * 4 * (len(action_mapping) - 1)
         if action_number != -1:
             label_pos = 4 * action_number
-            sx, sy, sw, sh = C.classifier_regr_std
-            h_bbox = [sx*tx, sy*ty, sw*tw, sh*th]
+         #   sx, sy, sw, sh = C.classifier_regr_std
+          #  h_bbox = [sx*tx, sy*ty, sw*tw, sh*th]
 
-            modified_boh_coordinates = generate_boh( h_bbox, triples[2])
+
 
             coords[label_pos:4+label_pos] = [modified_boh_coordinates[0],modified_boh_coordinates[1],
                                              modified_boh_coordinates[2],modified_boh_coordinates[3]]
@@ -195,6 +197,194 @@ def calc_iou(R, img_data, C, class_mapping, human_only=False):
                 raise RuntimeError
 
         class_num = class_mapping[cls_name]
+        class_label = len(class_mapping) * [0]
+        class_label[class_num] = 1
+        y_class_num.append(copy.deepcopy(class_label))
+        coords = [0] * 4 * (len(class_mapping) - 1)
+        labels = [0] * 4 * (len(class_mapping) - 1)
+        if cls_name != 'bg':
+            label_pos = 4 * class_num
+            sx, sy, sw, sh = C.classifier_regr_std
+            coords[label_pos:4+label_pos] = [sx*tx, sy*ty, sw*tw, sh*th]
+            labels[label_pos:4+label_pos] = [1, 1, 1, 1]
+            y_class_regr_coords.append(copy.deepcopy(coords))
+            y_class_regr_label.append(copy.deepcopy(labels))
+        else:
+            y_class_regr_coords.append(copy.deepcopy(coords))
+            y_class_regr_label.append(copy.deepcopy(labels))
+
+    if len(x_roi) == 0:
+        return None, None, None, None
+
+    X = np.array(x_roi)
+    Y1 = np.array(y_class_num)
+    Y2 = np.concatenate([np.array(y_class_regr_label),np.array(y_class_regr_coords)],axis=1)
+
+    return np.expand_dims(X, axis=0), np.expand_dims(Y1, axis=0), np.expand_dims(Y2, axis=0), IoUs
+
+def calc_iou_a(R, img_data, C, class_mapping, human_only=False):
+    bboxes = img_data['bboxes']
+    triples = img_data['triples']
+    (width, height) = (img_data['width'], img_data['height'])
+    # get image dimensions for resizing
+    (resized_width, resized_height) = data_generators.get_new_img_size(width, height, C.im_size)
+
+    gta = np.zeros((len(bboxes), 5))
+
+    for action_num, actions in enumerate(triples):
+        # get the GT box coordinates, and resize to account for image resizing
+        bbox = actions[2]
+        gta[action_num, 0] = int(round(bbox['x1'] * (resized_width / float(width))/C.rpn_stride))
+        gta[action_num, 1] = int(round(bbox['x2'] * (resized_width / float(width))/C.rpn_stride))
+        gta[action_num, 2] = int(round(bbox['y1'] * (resized_height / float(height))/C.rpn_stride))
+        gta[action_num, 3] = int(round(bbox['y2'] * (resized_height / float(height))/C.rpn_stride))
+        gta[action_num, 4] = int(actions[1]['action'])
+
+
+    x_roi = []
+    y_class_num = []
+    y_class_regr_coords = []
+    y_class_regr_label = []
+    IoUs = [] # for debugging only
+
+    for ix in range(R.shape[0]):
+        (x1, y1, x2, y2) = R[ix, :]
+        x1 = int(round(x1))
+        y1 = int(round(y1))
+        x2 = int(round(x2))
+        y2 = int(round(y2))
+
+        best_iou = 0.0
+        best_bbox = -1
+        for bbox_num in range(len(bboxes)):
+            curr_iou = data_generators.iou([gta[bbox_num, 0], gta[bbox_num, 2], gta[bbox_num, 1], gta[bbox_num, 3]], [x1, y1, x2, y2])
+            if curr_iou > best_iou:
+                best_iou = curr_iou
+                best_bbox = bbox_num
+
+        if best_iou < C.classifier_min_overlap:
+                continue
+        else:
+            w = x2 - x1
+            h = y2 - y1
+            x_roi.append([x1, y1, w, h])
+            IoUs.append(best_iou)
+
+            if C.classifier_min_overlap <= best_iou < C.classifier_max_overlap:
+                # hard negative example
+                cls_name = 'bg'
+            elif C.classifier_max_overlap <= best_iou:
+                cls_name = 'test'#bboxes[best_bbox]['class']
+                #cls_name = gta[0,1]
+                #cls_name =triples[]
+                cxg = (gta[best_bbox, 0] + gta[best_bbox, 1]) / 2.0
+                cyg = (gta[best_bbox, 2] + gta[best_bbox, 3]) / 2.0
+
+                cx = x1 + w / 2.0
+                cy = y1 + h / 2.0
+
+                tx = (cxg - cx) / float(w)
+                ty = (cyg - cy) / float(h)
+                tw = np.log((gta[best_bbox, 1] - gta[best_bbox, 0]) / float(w))
+                th = np.log((gta[best_bbox, 3] - gta[best_bbox, 2]) / float(h))
+            else:
+                print('roi = {}'.format(best_iou))
+                raise RuntimeError
+
+        class_num = gta[0,4]#class_mapping[cls_name]
+        class_label = len(class_mapping) * [0]
+        print class_num
+        class_label[int(class_num)] = 1
+        y_class_num.append(copy.deepcopy(class_label))
+        coords = [0] * 4 * (len(class_mapping) - 1)
+        labels = [0] * 4 * (len(class_mapping) - 1)
+        if cls_name != 'bg':
+            label_pos = 4 * class_num
+            sx, sy, sw, sh = C.classifier_regr_std
+            coords[label_pos:4+label_pos] = [sx*tx, sy*ty, sw*tw, sh*th]
+            labels[label_pos:4+label_pos] = [1, 1, 1, 1]
+            y_class_regr_coords.append(copy.deepcopy(coords))
+            y_class_regr_label.append(copy.deepcopy(labels))
+        else:
+            y_class_regr_coords.append(copy.deepcopy(coords))
+            y_class_regr_label.append(copy.deepcopy(labels))
+
+    if len(x_roi) == 0:
+        return None, None, None, None
+
+    X = np.array(x_roi)
+    Y1 = np.array(y_class_num)
+    Y2 = np.concatenate([np.array(y_class_regr_label),np.array(y_class_regr_coords)],axis=1)
+
+    return np.expand_dims(X, axis=0), np.expand_dims(Y1, axis=0), np.expand_dims(Y2, axis=0), IoUs
+def calc_iou2(R, img_data, C, class_mapping, human_only=False):
+    bboxes = img_data['bboxes']
+    (width, height) = (img_data['width'], img_data['height'])
+    # get image dimensions for resizing
+    (resized_width, resized_height) = data_generators.get_new_img_size(width, height, C.im_size)
+
+    gta = np.zeros((len(bboxes), 4))
+
+    for bbox_num, bbox in enumerate(bboxes):
+        # get the GT box coordinates, and resize to account for image resizing
+        gta[bbox_num, 0] = int(round(bbox['x1'] * (resized_width / float(width))/C.rpn_stride))
+        gta[bbox_num, 1] = int(round(bbox['x2'] * (resized_width / float(width))/C.rpn_stride))
+        gta[bbox_num, 2] = int(round(bbox['y1'] * (resized_height / float(height))/C.rpn_stride))
+        gta[bbox_num, 3] = int(round(bbox['y2'] * (resized_height / float(height))/C.rpn_stride))
+
+    x_roi = []
+    y_class_num = []
+    y_class_regr_coords = []
+    y_class_regr_label = []
+    IoUs = [] # for debugging only
+
+    for ix in range(R.shape[0]):
+        (x1, y1, x2, y2) = R[ix, :]
+        x1 = int(round(x1))
+        y1 = int(round(y1))
+        x2 = int(round(x2))
+        y2 = int(round(y2))
+
+        best_iou = 0.0
+        best_bbox = -1
+        for bbox_num in range(len(bboxes)):
+            curr_iou = data_generators.iou([gta[bbox_num, 0], gta[bbox_num, 2], gta[bbox_num, 1], gta[bbox_num, 3]], [x1, y1, x2, y2])
+            if curr_iou > best_iou:
+                best_iou = curr_iou
+                best_bbox = bbox_num
+
+        if best_iou < C.classifier_min_overlap:
+                continue
+        else:
+            w = x2 - x1
+            h = y2 - y1
+            x_roi.append([x1, y1, w, h])
+            IoUs.append(best_iou)
+
+            if C.classifier_min_overlap <= best_iou < C.classifier_max_overlap:
+                # hard negative example
+                cls_name = 'bg'
+            elif C.classifier_max_overlap <= best_iou:
+                cls_name = bboxes[best_bbox]['class']
+                cxg = (gta[best_bbox, 0] + gta[best_bbox, 1]) / 2.0
+                cyg = (gta[best_bbox, 2] + gta[best_bbox, 3]) / 2.0
+
+                cx = x1 + w / 2.0
+                cy = y1 + h / 2.0
+
+                tx = (cxg - cx) / float(w)
+                ty = (cyg - cy) / float(h)
+                tw = np.log((gta[best_bbox, 1] - gta[best_bbox, 0]) / float(w))
+                th = np.log((gta[best_bbox, 3] - gta[best_bbox, 2]) / float(h))
+            else:
+                print('roi = {}'.format(best_iou))
+                raise RuntimeError
+
+        if(cls_name=='bg'):
+            #cls_name= 'hit'
+            class_num = class_mapping['hit']
+        else:
+            class_num = class_mapping[cls_name]
         class_label = len(class_mapping) * [0]
         class_label[class_num] = 1
         y_class_num.append(copy.deepcopy(class_label))

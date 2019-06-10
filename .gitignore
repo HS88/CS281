@@ -1,2 +1,4 @@
 .idea/
 images/
+keras_frcnn/vcoco/
+*.pickle
