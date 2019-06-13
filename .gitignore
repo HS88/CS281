@@ -5,3 +5,4 @@ keras_frcnn/vcoco/
 *.png
 logs/
 *.hdf5
+test_fr*.py
