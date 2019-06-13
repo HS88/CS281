@@ -217,7 +217,7 @@ callback = TensorBoard(log_path)
 callback.set_model(model_all)
 
 epoch_length = 1000
-num_epochs = 1#int(options.num_epochs)
+num_epochs = int(options.num_epochs)
 iter_num = 0
 train_step = 0
 
