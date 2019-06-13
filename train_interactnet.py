@@ -269,7 +269,7 @@ for epoch_num in range(num_epochs):
         # sampling positive/negative samples
         neg_samples = np.where(Y1[0, :, -1] == 1)
         pos_samples = np.where(Y1[0, :, -1] == 0)
-        pos_samples_h = np.where(Y1[0, :, -1] != 3) # harmeet this is a bad hack
+        pos_samples_h = np.where(Y1_h[0, :, -1] != 3) # harmeet this is a bad hack
 
         if len(neg_samples) > 0:
             neg_samples = neg_samples[0]
