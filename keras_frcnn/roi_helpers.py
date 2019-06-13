@@ -22,17 +22,17 @@ def generate_boh(human_bboxes, gt_o_bboxes):
 
     return [tx,ty,tw,th]
 
-def calc_iou_human(R, img_data, C, action_mapping, human_only=False):
+def calc_iou_human(R, img_data, C, action_mapping, num_rois_h):
     bboxes = img_data['bboxes']
     triples = img_data['triples'][0]# we have only one triples in an image. I am retreiving it here.
-    if( human_only == True ):
-        human_bboxes = []
-        count = 0
-        for i in range( len(bboxes) ):
-            if (img_data['bboxes'][i]['class'] == 'person'):
-                count = count + 1
-                human_bboxes.append(img_data['bboxes'][i])
-        bboxes = human_bboxes
+
+    human_bboxes = []
+    count = 0
+    for i in range( len(bboxes) ):
+        if (img_data['bboxes'][i]['class'] == 'person'):
+            count = count + 1
+            human_bboxes.append(img_data['bboxes'][i])
+    bboxes = human_bboxes
 
 
     if len(bboxes) == 0:
@@ -64,72 +64,53 @@ def calc_iou_human(R, img_data, C, action_mapping, human_only=False):
         x2 = int(round(x2))
         y2 = int(round(y2))
 
-        best_iou = 0.0
-        best_bbox = -1
-        for bbox_num in range(len(bboxes)):
-            curr_iou = data_generators.iou([gta[bbox_num, 0], gta[bbox_num, 2], gta[bbox_num, 1], gta[bbox_num, 3]], [x1, y1, x2, y2])
-            if curr_iou > best_iou:
-                best_iou = curr_iou
-                best_bbox = bbox_num
-
+        best_iou = data_generators.iou([gta[0, 0], gta[0, 2], gta[0, 1], gta[0, 3]], [x1, y1, x2, y2])
         if best_iou < C.classifier_max_overlap_h:
-                #print( best_iou )
-                continue
-        else:
-            w = x2 - x1
-            h = y2 - y1
-            x_roi.append([x1, y1, w, h])
-            IoUs.append(best_iou)
+            continue
 
-            modified_boh_coordinates = generate_boh([x1, y1, w, h], triples[2])
+        w = x2 - x1
+        h = y2 - y1
+        x_roi.append([x1, y1, w, h])
+        IoUs.append(best_iou)
 
-            if C.classifier_min_overlap <= best_iou < C.classifier_max_overlap_h:
-                # hard negative example
-                action_number = -1
-            elif C.classifier_max_overlap_h <= best_iou:
-                action_number = int(triples[1]['action']) #harmeet. TODO- change this to get action number
-            #    cxg = (gta[best_bbox, 0] + gta[best_bbox, 1]) / 2.0
-                #cyg = (gta[best_bbox, 2] + gta[best_bbox, 3]) / 2.0
+        modified_boh_coordinates = generate_boh([x1, y1, w, h], triples[2])
+        action_number = int(triples[1]['action'])
 
-             #   cx = x1 + w / 2.0
-            #    cy = y1 + h / 2.0
-
-           #     tx = (cxg - cx) / float(w)
-           #     ty = (cyg - cy) / float(h)
-           #     tw = np.log((gta[best_bbox, 1] - gta[best_bbox, 0]) / float(w))
-           #     th = np.log((gta[best_bbox, 3] - gta[best_bbox, 2]) / float(h))
-#            else:
-#                print('roi = {}'.format(best_iou))
-#                raise RuntimeError
-
-#        class_num = action_mapping[action_number]
         class_label = len(action_mapping) * [0]
         class_label[action_number] = 1                  #harmeet: 1-hot encoding for the action number
         y_class_num.append(copy.deepcopy(class_label))
         coords = [0] * 4 * (len(action_mapping) - 1)
         labels = [0] * 4 * (len(action_mapping) - 1)
-        if action_number != -1:
-            label_pos = 4 * action_number
-         #   sx, sy, sw, sh = C.classifier_regr_std
-          #  h_bbox = [sx*tx, sy*ty, sw*tw, sh*th]
+        label_pos = 4 * action_number
+        coords[label_pos:4+label_pos] = [modified_boh_coordinates[0],modified_boh_coordinates[1],
+                                         modified_boh_coordinates[2],modified_boh_coordinates[3]]
+        labels[label_pos:4+label_pos] = [1, 1, 1, 1]
+        y_class_regr_coords.append(copy.deepcopy(coords))
+        y_class_regr_label.append(copy.deepcopy(labels))
 
 
-
-            coords[label_pos:4+label_pos] = [modified_boh_coordinates[0],modified_boh_coordinates[1],
-                                             modified_boh_coordinates[2],modified_boh_coordinates[3]]
-            labels[label_pos:4+label_pos] = [1, 1, 1, 1]
-            y_class_regr_coords.append(copy.deepcopy(coords))
-            y_class_regr_label.append(copy.deepcopy(labels))
-        else:
-            y_class_regr_coords.append(copy.deepcopy(coords))
-            y_class_regr_label.append(copy.deepcopy(labels))
-
-    if len(x_roi) == 0:
+    if len(x_roi)< num_rois_h:
         return None, None, None, None
 
-    X = np.array(x_roi)
-    Y1 = np.array(y_class_num)
-    Y2 = np.concatenate([np.array(y_class_regr_label),np.array(y_class_regr_coords)],axis=1)
+    if( len(x_roi) < num_rois_h ):
+        X = np.array(x_roi)
+        Y1 = np.array(y_class_num)
+        Y2 = np.concatenate([np.array(y_class_regr_label),np.array(y_class_regr_coords)],axis=1)
+    else:
+        sel = np.argsort(IoUs)[-num_rois_h:]
+        x_roi_selected = []
+        y_class_num_selected = []
+        y_class_regr_coords_selected = []
+        y_class_regr_label_selected = []
+        for i in sel:
+            x_roi_selected.append(x_roi[i])
+            y_class_num_selected.append(y_class_num[i])
+            y_class_regr_coords_selected.append(y_class_regr_coords[i])
+            y_class_regr_label_selected.append(y_class_regr_label[i])
+
+        X = np.array(x_roi_selected)
+        Y1 = np.array(y_class_num_selected)
+        Y2 = np.concatenate([np.array(y_class_regr_label_selected), np.array(y_class_regr_coords_selected)], axis=1)
 
     return np.expand_dims(X, axis=0), np.expand_dims(Y1, axis=0), np.expand_dims(Y2, axis=0), IoUs
 
@@ -222,6 +203,7 @@ def calc_iou(R, img_data, C, class_mapping, human_only=False):
 
     return np.expand_dims(X, axis=0), np.expand_dims(Y1, axis=0), np.expand_dims(Y2, axis=0), IoUs
 
+'''
 def calc_iou_a(R, img_data, C, class_mapping, human_only=False):
     bboxes = img_data['bboxes']
     triples = img_data['triples']
@@ -317,6 +299,7 @@ def calc_iou_a(R, img_data, C, class_mapping, human_only=False):
     Y2 = np.concatenate([np.array(y_class_regr_label),np.array(y_class_regr_coords)],axis=1)
 
     return np.expand_dims(X, axis=0), np.expand_dims(Y1, axis=0), np.expand_dims(Y2, axis=0), IoUs
+'''
 def calc_iou2(R, img_data, C, class_mapping, human_only=False):
     bboxes = img_data['bboxes']
     (width, height) = (img_data['width'], img_data['height'])

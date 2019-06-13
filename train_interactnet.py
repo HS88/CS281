@@ -37,7 +37,7 @@ parser = OptionParser()
 parser.add_option("-p", "--path", dest="train_path", help="Path to training data.")
 parser.add_option("-o", "--parser", dest="parser", help="Parser to use. One of simple or pascal_voc",
                   default="simple")
-parser.add_option("-n", "--num_rois", dest="num_rois", help="Number of RoIs to process at once.", default=32)
+parser.add_option("-n", "--num_rois", dest="num_rois", help="Number of RoIs to process at once.", default=128)
 parser.add_option("--network", dest="network", help="Base network to use. Supports vgg or resnet50.", default='resnet50')
 parser.add_option("--hf", dest="horizontal_flips", help="Augment with horizontal flips in training. (Default=false).", action="store_true", default=False)
 parser.add_option("--vf", dest="vertical_flips", help="Augment with vertical flips in training. (Default=false).", action="store_true", default=False)
@@ -72,6 +72,8 @@ C.rot_90 = bool(options.rot_90)
 
 C.model_path = options.output_weight_path
 C.num_rois = int(options.num_rois)
+
+num_rois_h = 4
 
 if options.network == 'vgg':
     C.network = 'vgg'
@@ -176,7 +178,7 @@ num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
 rpn = nn.rpn(shared_layers, num_anchors)
 
 classifier = nn.classifier(shared_layers, roi_input, C.num_rois, nb_classes=len(classes_count), trainable=True)
-classifier_branch2 = nn.classifier_branch2(shared_layers, roi_input, C.num_rois, nb_classes=len(actions_count), trainable=True)#harmeet. What is nb_classes ?
+classifier_branch2 = nn.classifier_branch2(shared_layers, roi_input, num_rois_h, nb_classes=len(actions_count), trainable=True)#harmeet. What is nb_classes ?
 
 model_rpn = Model(img_input, rpn[:2])
 model_classifier = Model([img_input, roi_input], classifier)
@@ -257,9 +259,9 @@ for epoch_num in range(num_epochs):
         R = roi_helpers.rpn_to_roi(P_rpn[0], P_rpn[1], C, K.image_dim_ordering(), use_regr=True, overlap_thresh=0.7, max_boxes=300)
 
         X2, Y1, Y2, IouS = roi_helpers.calc_iou(R, img_data, C, class_mapping)
-        X2_h, Y1_h, Y2_boh, IouS_h = roi_helpers.calc_iou_human(R, img_data, C, action_mapping, True)
+        X2_h, Y1_h, Y2_boh, IouS_h = roi_helpers.calc_iou_human(R, img_data, C, action_mapping, num_rois_h)
 
-        if X2 is None or X2_h is None or X2_h.shape[1] < C.num_rois :
+        if X2 is None or X2_h is None or X2_h.shape[1] < num_rois_h :
             rpn_accuracy_rpn_monitor.append(0)
             rpn_accuracy_for_epoch.append(0)
             continue
@@ -267,9 +269,7 @@ for epoch_num in range(num_epochs):
         # sampling positive/negative samples
         neg_samples = np.where(Y1[0, :, -1] == 1)
         pos_samples = np.where(Y1[0, :, -1] == 0)
-
-        neg_samples_h = np.where(Y1_h[0, :, -1] == 1)
-        pos_samples_h = np.where(Y1_h[0, :, -1] == 0)
+        pos_samples_h = np.where(Y1[0, :, -1] != 3) # harmeet this is a bad hack
 
         if len(neg_samples) > 0:
             neg_samples = neg_samples[0]
@@ -281,27 +281,22 @@ for epoch_num in range(num_epochs):
         else:
             pos_samples = []
 
-        if len(neg_samples_h) > 0:
-            neg_samples_h = neg_samples_h[0]
-        else:
-            neg_samples_h = []
-
-        if len(pos_samples_h) > 0:
+        if( len(pos_samples_h)) > 0:
             pos_samples_h = pos_samples_h[0]
-        else:
-            pos_samples_h = []
+
+
 
         rpn_accuracy_rpn_monitor.append(len(pos_samples))
         rpn_accuracy_for_epoch.append((len(pos_samples)))
 
-        rpn_accuracy_rpn_monitor.append(len(pos_samples_h))
-        rpn_accuracy_for_epoch.append((len(pos_samples_h)))
+        rpn_accuracy_rpn_monitor.append(num_rois_h)
+        rpn_accuracy_for_epoch.append((num_rois_h))
 
         if C.num_rois > 1:
-            if len(pos_samples) < C.num_rois//2:
+            if len(pos_samples) < C.num_rois//4:
                 selected_pos_samples = pos_samples.tolist()
             else:
-                selected_pos_samples = np.random.choice(pos_samples, C.num_rois//2, replace=False).tolist()
+                selected_pos_samples = np.random.choice(pos_samples, C.num_rois//4, replace=False).tolist()
             try:
                 selected_neg_samples = np.random.choice(neg_samples, C.num_rois - len(selected_pos_samples), replace=False).tolist()
             except:
@@ -317,27 +312,8 @@ for epoch_num in range(num_epochs):
             else:
                 sel_samples = random.choice(pos_samples)
 
-        if C.num_rois > 1:
-            if len(pos_samples_h) < C.num_rois:
-                selected_pos_samples_h = pos_samples_h.tolist()
-            else:
-                selected_pos_samples_h = np.random.choice(pos_samples_h, C.num_rois, replace=True).tolist()
-           # try:
-           #     selected_neg_samples_h = np.random.choice(neg_samples_h, C.num_rois - len(selected_pos_samples_h), replace=False).tolist()
-           # except:
-               # selected_neg_samples_h = np.random.choice(neg_samples_h, C.num_rois - len(selected_pos_samples_h), replace=True).tolist()
 
-            sel_samples_h = selected_pos_samples_h #+ selected_neg_samples_h
-        else:
-            # in the extreme case where num_rois = 1, we pick a random pos or neg sample
-            selected_pos_samples_h = pos_samples_h.tolist()
-            selected_neg_samples_h = neg_samples_h.tolist()
-            if np.random.randint(0, 2):
-                sel_samples_h = random.choice(neg_samples_h)
-            else:
-                sel_samples_h = random.choice(pos_samples_h)
-
-	
+        sel_samples_h = pos_samples_h.tolist() #+ selected_neg_samples_h
 
         loss_class = model_classifier.train_on_batch([X, X2[:, sel_samples, :]], [Y1[:, sel_samples, :], Y2[:, sel_samples, :]])
         loss_class_branch2 = model_classifier_branch2.train_on_batch([X, X2_h[:, sel_samples_h, :]],[Y1_h[:, sel_samples_h, :], Y2_boh[:, sel_samples_h, :]])

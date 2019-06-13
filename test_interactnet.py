@@ -265,7 +265,6 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
                 pass
             bboxes[cls_name].append([C.rpn_stride*x, C.rpn_stride*y, C.rpn_stride*(x+w), C.rpn_stride*(y+h)])
             probs[cls_name].append(np.max(P_cls[0, ii, :]))
-    #
     all_dets = []
     
     for key in bboxes:
