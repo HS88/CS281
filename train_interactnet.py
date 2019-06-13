@@ -1,3 +1,4 @@
+
 from __future__ import division
 from keras.utils.vis_utils import plot_model
 import random
@@ -57,7 +58,8 @@ if not options.train_path:   # if filename is not given
 if options.parser == 'pascal_voc':
     from keras_frcnn.pascal_voc_parser import get_data
 elif options.parser == 'simple':
-    from keras_frcnn.vcoco.simple_parser import get_data
+    #from keras_frcnn.vcoco.simple_parser import get_data
+    a = 1
 else:
     raise ValueError("Command line option parser must be one of 'pascal_voc' or 'simple'")
 
@@ -94,7 +96,6 @@ else:
     # set the path to weights based on backend and model
     C.base_net_weights = nn.get_weight_path()
 '''
-
 all_imgs, classes_count, class_mapping, actions_count, action_mapping = get_data(options.train_path)
 
 
@@ -141,11 +142,11 @@ train_imgs = [s for s in all_imgs if s['imageset'] == 'train']
 val_imgs = [s for s in all_imgs if s['imageset'] == 'val']
 test_imgs = [s for s in all_imgs if s['imageset'] == 'test']
 
+'''
 pickle_out = open("data_gen_train_inet.pickle","wb") ;pickle.dump(train_imgs, pickle_out) ;pickle_out.close();
 pickle_out = open("data_gen_val_inet.pickle","wb") ;pickle.dump(val_imgs, pickle_out) ;pickle_out.close();
 pickle_out = open("data_gen_test_inet.pickle","wb") ;pickle.dump(test_imgs, pickle_out) ;pickle_out.close();
 
-'''
 pickle_in = open("data_gen_train.pickle","rb");train_imgs = pickle.load(pickle_in)
 pickle_in = open("data_gen_val.pickle","rb");val_imgs = pickle.load(pickle_in)
 pickle_in = open("data_gen_test.pickle","rb");test_imgs = pickle.load(pickle_in)
@@ -213,7 +214,7 @@ if not os.path.isdir(log_path):
 callback = TensorBoard(log_path)
 callback.set_model(model_all)
 
-epoch_length = 1
+epoch_length = 1000
 num_epochs = 1#int(options.num_epochs)
 iter_num = 0
 train_step = 0
@@ -254,11 +255,11 @@ for epoch_num in range(num_epochs):
         P_rpn = model_rpn.predict_on_batch(X)
 
         R = roi_helpers.rpn_to_roi(P_rpn[0], P_rpn[1], C, K.image_dim_ordering(), use_regr=True, overlap_thresh=0.7, max_boxes=300)
-        # note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
+
         X2, Y1, Y2, IouS = roi_helpers.calc_iou(R, img_data, C, class_mapping)
         X2_h, Y1_h, Y2_boh, IouS_h = roi_helpers.calc_iou_human(R, img_data, C, action_mapping, True)
 
-        if X2 is None or X2_h is None:
+        if X2 is None or X2_h is None or X2_h.shape[1] < C.num_rois :
             rpn_accuracy_rpn_monitor.append(0)
             rpn_accuracy_for_epoch.append(0)
             continue
@@ -320,7 +321,7 @@ for epoch_num in range(num_epochs):
             if len(pos_samples_h) < C.num_rois:
                 selected_pos_samples_h = pos_samples_h.tolist()
             else:
-                selected_pos_samples_h = np.random.choice(pos_samples_h, C.num_rois, replace=False).tolist()
+                selected_pos_samples_h = np.random.choice(pos_samples_h, C.num_rois, replace=True).tolist()
            # try:
            #     selected_neg_samples_h = np.random.choice(neg_samples_h, C.num_rois - len(selected_pos_samples_h), replace=False).tolist()
            # except:
@@ -336,11 +337,8 @@ for epoch_num in range(num_epochs):
             else:
                 sel_samples_h = random.choice(pos_samples_h)
 
+	
 
-        print(sel_samples)
-        print(sel_samples_h)
-
-        print(X.shape, X2_h.shape, Y1_h.shape, Y2_boh.shape)
         loss_class = model_classifier.train_on_batch([X, X2[:, sel_samples, :]], [Y1[:, sel_samples, :], Y2[:, sel_samples, :]])
         loss_class_branch2 = model_classifier_branch2.train_on_batch([X, X2_h[:, sel_samples_h, :]],[Y1_h[:, sel_samples_h, :], Y2_boh[:, sel_samples_h, :]])
 

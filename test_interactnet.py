@@ -167,7 +167,7 @@ model_classifier_only = Model([feature_map_input, roi_input], classifier)
 model_classifier = Model([feature_map_input, roi_input], classifier)
 
 #model_classifier_branch2 = Model([feature_map_input, human_rois], classifier_branch2)
-C.model_path='./model_interactnet_50.hdf5'
+C.model_path='./model_frcnn.hdf5'
 #Load weights.
 print('Loading weights from {}'.format(C.model_path))
 model_rpn.load_weights(C.model_path, by_name=True)
