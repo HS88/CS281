@@ -57,7 +57,8 @@ if not options.train_path:   # if filename is not given
 if options.parser == 'pascal_voc':
     from keras_frcnn.pascal_voc_parser import get_data
 elif options.parser == 'simple':
-    from keras_frcnn.vcoco.simple_parser import get_data
+    #from keras_frcnn.vcoco.simple_parser import get_data
+    a = 1
 else:
     raise ValueError("Command line option parser must be one of 'pascal_voc' or 'simple'")
 
@@ -94,7 +95,6 @@ else:
     # set the path to weights based on backend and model
     C.base_net_weights = nn.get_weight_path()
 '''
-
 all_imgs, classes_count, class_mapping, actions_count, action_mapping = get_data(options.train_path)
 
 
@@ -141,11 +141,11 @@ train_imgs = [s for s in all_imgs if s['imageset'] == 'train']
 val_imgs = [s for s in all_imgs if s['imageset'] == 'val']
 test_imgs = [s for s in all_imgs if s['imageset'] == 'test']
 
+'''
 pickle_out = open("data_gen_train_inet.pickle","wb") ;pickle.dump(train_imgs, pickle_out) ;pickle_out.close();
 pickle_out = open("data_gen_val_inet.pickle","wb") ;pickle.dump(val_imgs, pickle_out) ;pickle_out.close();
 pickle_out = open("data_gen_test_inet.pickle","wb") ;pickle.dump(test_imgs, pickle_out) ;pickle_out.close();
 
-'''
 pickle_in = open("data_gen_train.pickle","rb");train_imgs = pickle.load(pickle_in)
 pickle_in = open("data_gen_val.pickle","rb");val_imgs = pickle.load(pickle_in)
 pickle_in = open("data_gen_test.pickle","rb");test_imgs = pickle.load(pickle_in)
@@ -213,7 +213,7 @@ if not os.path.isdir(log_path):
 callback = TensorBoard(log_path)
 callback.set_model(model_all)
 
-epoch_length = 1
+epoch_length = 1000
 num_epochs = 1#int(options.num_epochs)
 iter_num = 0
 train_step = 0
@@ -337,10 +337,7 @@ for epoch_num in range(num_epochs):
                 sel_samples_h = random.choice(pos_samples_h)
 
 
-        print(sel_samples)
-        print(sel_samples_h)
 
-        print(X.shape, X2_h.shape, Y1_h.shape, Y2_boh.shape)
         loss_class = model_classifier.train_on_batch([X, X2[:, sel_samples, :]], [Y1[:, sel_samples, :], Y2[:, sel_samples, :]])
         loss_class_branch2 = model_classifier_branch2.train_on_batch([X, X2_h[:, sel_samples_h, :]],[Y1_h[:, sel_samples_h, :], Y2_boh[:, sel_samples_h, :]])
 
