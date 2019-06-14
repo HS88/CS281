@@ -157,7 +157,7 @@ rpn_layers = nn.rpn(shared_layers, num_anchors)
 classifier = nn.classifier(feature_map_input, roi_input, C.num_rois, nb_classes=len(class_mapping), trainable=False)
 
 #Define the human-centric branch
-classifier_branch2 = nn.classifier_branch2(feature_map_input, roi_input, 4, nb_classes=len(actions_count), trainable=False)
+classifier_branch2 = nn.classifier_branch2(feature_map_input, roi_input,1, nb_classes=len(actions_count), trainable=False)
 
 #Instantiate layers as tensorflow models.
 model_rpn = Model(img_input, rpn_layers)
@@ -267,7 +267,7 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
                 pass
             bboxes[cls_name].append([C.rpn_stride*x, C.rpn_stride*y, C.rpn_stride*(x+w), C.rpn_stride*(y+h)])
             probs[cls_name].append(np.max(P_cls[0, ii, :]))
-            if(cls_name=='Person'):
+            if(cls_name=='person'):
                 print("Find actions")
                 [P_action, P_density] = model_classifier_branch2_only.predict([F, ROIs])
                 print(P_action)
