@@ -166,6 +166,7 @@ model_classifier_only = Model([feature_map_input, roi_input], classifier)
 model_classifier_branch2_only = Model([feature_map_input, roi_input], classifier_branch2)
 
 model_classifier = Model([feature_map_input, roi_input], classifier)
+model_classifier_branch2 = Model([feature_map_input, roi_input], classifier_branch2)
 
 
 C.model_path='./model_frcnn.hdf5'
@@ -173,15 +174,13 @@ C.model_path='./model_frcnn.hdf5'
 print('Loading weights from {}'.format(C.model_path))
 model_rpn.load_weights(C.model_path, by_name=True)
 model_classifier.load_weights(C.model_path, by_name=True)
-#model_classifier_branch2.load_weights(C.model_path, by_name=True)
 
 #Compile layers
 model_rpn.compile(optimizer='sgd', loss='mse')
 model_classifier.compile(optimizer='sgd', loss='mse')
-#model_classifier_branch2.compile(optimizer='sgd', loss='mse')
+model_classifier_branch2.compile(optimizer='sgd', loss='mse')
 
 all_imgs = []
-
 classes = {}
 
 #Original threshold: 0.8 
@@ -213,7 +212,7 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
     [Y1, Y2, F] = model_rpn.predict(X)
 
     #Get ROIs from RPN output
-    R = roi_helpers.rpn_to_roi(Y1, Y2, C, K.image_dim_ordering(), overlap_thresh=0.7)
+    R = roi_helpers.rpn_to_roi(Y1, Y2, C, K.image_dim_ordering(), overlap_thresh = 0.7)
 
     # convert from (x1,y1,x2,y2) to (x,y,w,h)
     R[:, 2] -= R[:, 0]
@@ -222,6 +221,7 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
     # apply the spatial pyramid pooling to the proposed regions
     bboxes = {}
     probs = {}
+    actions = {}
     
     #Process ROIs in batches of C.num_rois.
     for jk in range(R.shape[0]//C.num_rois + 1):
@@ -267,6 +267,13 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
                 pass
             bboxes[cls_name].append([C.rpn_stride*x, C.rpn_stride*y, C.rpn_stride*(x+w), C.rpn_stride*(y+h)])
             probs[cls_name].append(np.max(P_cls[0, ii, :]))
+            if(cls_name=='Person'):
+                print("Find actions")
+                [P_action, P_density] = model_classifier_branch2_only.predict([F, ROIs])
+                print(P_action)
+
+
+
     all_dets = []
     
     for key in bboxes:
