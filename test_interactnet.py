@@ -157,16 +157,17 @@ rpn_layers = nn.rpn(shared_layers, num_anchors)
 classifier = nn.classifier(feature_map_input, roi_input, C.num_rois, nb_classes=len(class_mapping), trainable=False)
 
 #Define the human-centric branch
-classifier_branch2 = nn.classifier_branch2(shared_layers, roi_input, C.num_rois, nb_classes=len(actions_count), trainable=False)
+classifier_branch2 = nn.classifier_branch2(feature_map_input, roi_input, 4, nb_classes=len(actions_count), trainable=False)
 
 #Instantiate layers as tensorflow models.
 model_rpn = Model(img_input, rpn_layers)
 
 model_classifier_only = Model([feature_map_input, roi_input], classifier)
+model_classifier_branch2_only = Model([feature_map_input, roi_input], classifier_branch2)
 
 model_classifier = Model([feature_map_input, roi_input], classifier)
 
-#model_classifier_branch2 = Model([feature_map_input, human_rois], classifier_branch2)
+
 C.model_path='./model_frcnn.hdf5'
 #Load weights.
 print('Loading weights from {}'.format(C.model_path))
@@ -239,6 +240,7 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
             ROIs = ROIs_padded
 	#Run classifier branch 1 prediction.
         [P_cls, P_regr] = model_classifier_only.predict([F, ROIs])
+    #Run second branch
 
         for ii in range(P_cls.shape[1]):
 
@@ -290,6 +292,4 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 
     print('Elapsed time = {}'.format(time.time() - st))
     print(all_dets)
-    #cv2.imshow('img', img)
-    #cv2.waitKey(0)
     cv2.imwrite('./results_imgs/{}.png'.format(idx),img)
