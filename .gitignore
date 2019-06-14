@@ -6,3 +6,6 @@ keras_frcnn/vcoco/
 logs/
 *.hdf5
 test_fr*.py
+trained_model/
+nohup.out
+
