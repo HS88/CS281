@@ -7,11 +7,11 @@ import sys
 import pickle
 from optparse import OptionParser
 import time
-from keras_frcnn import config
+from keras_interactnet import config
 from keras import backend as K
 from keras.layers import Input
 from keras.models import Model
-from keras_frcnn import roi_helpers
+from keras_interactnet import roi_helpers
 
 sys.setrecursionlimit(40000)
 
@@ -47,13 +47,13 @@ with open(config_output_filename, 'rb') as f_in:
     C = pickle.load(f_in)
 #Determine feature map base network.
 if C.network == 'resnet50':
-    import keras_frcnn.resnet as nn
+    import keras_interactnet.resnet as nn
 elif C.network == 'xception':
-    import keras_frcnn.xception as nn
+    import keras_interactnet.xception as nn
 elif C.network == 'inception_resnet_v2':
-    import keras_frcnn.inception_resnet_v2 as nn
+    import keras_interactnet.inception_resnet_v2 as nn
 elif C.network == 'vgg':
-    import keras_frcnn.vgg as nn
+    import keras_interactnet.vgg as nn
 
 # turn off any data augmentation at test time
 C.use_horizontal_flips = False

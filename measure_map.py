@@ -5,13 +5,13 @@ import sys
 import pickle
 from optparse import OptionParser
 import time
-from keras_frcnn import config
-import keras_frcnn.resnet as nn
+from keras_interactnet import config
+import keras_interactnet.resnet as nn
 from keras import backend as K
 from keras.layers import Input
 from keras.models import Model
-from keras_frcnn import roi_helpers
-from keras_frcnn import data_generators
+from keras_interactnet import roi_helpers
+from keras_interactnet import data_generators
 from sklearn.metrics import average_precision_score
 
 
@@ -94,9 +94,9 @@ if not options.test_path:   # if filename is not given
 
 
 if options.parser == 'pascal_voc':
-    from keras_frcnn.pascal_voc_parser import get_data
+    from keras_interactnet.pascal_voc_parser import get_data
 elif options.parser == 'simple':
-    from keras_frcnn.simple_parser import get_data
+    from keras_interactnet.simple_parser import get_data
 else:
     raise ValueError("Command line option parser must be one of 'pascal_voc' or 'simple'")
 

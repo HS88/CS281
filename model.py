@@ -13,9 +13,9 @@ from keras import backend as K
 from keras.optimizers import Adam, SGD, RMSprop
 from keras.layers import Input
 from keras.models import Model
-from keras_frcnn import config, data_generators
-from keras_frcnn import losses as losses
-import keras_frcnn.roi_helpers as roi_helpers
+from keras_interactnet import config, data_generators
+from keras_interactnet import losses as losses
+import keras_interactnet.roi_helpers as roi_helpers
 from keras.utils import generic_utils
 from keras.callbacks import TensorBoard
 from keras.utils.vis_utils import plot_model
@@ -24,7 +24,7 @@ from keras.utils.vis_utils import plot_model
 def main():
     print("create model")
     C = config.Config()
-    from keras_frcnn import resnet as nn
+    from keras_interactnet import resnet as nn
     C.network = 'resnet50'
     C.base_net_weights = nn.get_weight_path()
 

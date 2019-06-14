@@ -1,6 +1,6 @@
 .idea/
 images/
-keras_frcnn/vcoco/
+keras_interactnet/vcoco/
 *.pickle
 *.png
 logs/

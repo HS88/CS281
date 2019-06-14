@@ -18,8 +18,8 @@ from keras.layers import Input, add, Dense, Activation, Flatten, Conv2D, MaxPool
 
 from keras import backend as K
 
-from keras_frcnn.RoiPoolingConv import RoiPoolingConv
-from keras_frcnn.FixedBatchNormalization import FixedBatchNormalization
+from keras_interactnet.RoiPoolingConv import RoiPoolingConv
+from keras_interactnet.FixedBatchNormalization import FixedBatchNormalization
 
 
 def get_weight_path():

@@ -15,9 +15,9 @@ from keras import backend as K
 from keras.optimizers import Adam, SGD, RMSprop
 from keras.layers import Input
 from keras.models import Model
-from keras_frcnn import config, data_generators
-from keras_frcnn import losses as losses
-import keras_frcnn.roi_helpers as roi_helpers
+from keras_interactnet import config, data_generators
+from keras_interactnet import losses as losses
+import keras_interactnet.roi_helpers as roi_helpers
 from keras.utils import generic_utils
 from keras.callbacks import TensorBoard
 
@@ -56,9 +56,9 @@ if not options.train_path:   # if filename is not given
     parser.error('Error: path to training data must be specified. Pass --path to command line')
 
 if options.parser == 'pascal_voc':
-    from keras_frcnn.pascal_voc_parser import get_data
+    from keras_interactnet.pascal_voc_parser import get_data
 elif options.parser == 'simple':
-    #from keras_frcnn.vcoco.simple_parser import get_data
+    #from keras_interactnet.vcoco.simple_parser import get_data
     a = 1
 else:
     raise ValueError("Command line option parser must be one of 'pascal_voc' or 'simple'")
@@ -77,15 +77,15 @@ num_rois_h = 4
 
 if options.network == 'vgg':
     C.network = 'vgg'
-    from keras_frcnn import vgg as nn
+    from keras_interactnet import vgg as nn
 elif options.network == 'resnet50':
-    from keras_frcnn import resnet as nn
+    from keras_interactnet import resnet as nn
     C.network = 'resnet50'
 elif options.network == 'xception':
-    from keras_frcnn import xception as nn
+    from keras_interactnet import xception as nn
     C.network = 'xception'
 elif options.network == 'inception_resnet_v2':
-    from keras_frcnn import inception_resnet_v2 as nn
+    from keras_interactnet import inception_resnet_v2 as nn
     C.network = 'inception_resnet_v2'
 else:
     print('Not a valid model')
